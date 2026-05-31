@@ -90,8 +90,9 @@
     'Asia/Tokyo','Australia/Sydney','Pacific/Auckland'
   ]);
 
-  let settings    = { ...DEFAULT_SETTINGS };
-  let intervalId  = null;
+  let settings     = { ...DEFAULT_SETTINGS };
+  let intervalId   = null;
+  let initialized  = false;
 
   // ── Input sanitisation ────────────────────────────────────────────────────
   // All values from chrome.storage are untrusted; validate every field.
@@ -152,31 +153,35 @@
 
   // ── Date / time formatters ────────────────────────────────────────────────
   function formatDate(date, tz) {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit'
-    }).formatToParts(date);
-    const p = {};
-    parts.forEach(x => { p[x.type] = x.value; });
-    const dd  = p.day;
-    const mm  = p.month;
-    const yyyy = p.year;
-    const idx = parseInt(mm, 10) - 1;
-    const mon = (idx >= 0 && idx < 12) ? MONTHS_SHORT[idx] : '';
-    switch (settings.dateFormat) {
-      case 'DD/MM/YYYY': return `${dd}/${mm}/${yyyy}`;
-      case 'MM/DD/YYYY': return `${mm}/${dd}/${yyyy}`;
-      default:           return `${dd}-${mon}-${yyyy}`;
-    }
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit'
+      }).formatToParts(date);
+      const p = {};
+      parts.forEach(x => { p[x.type] = x.value; });
+      const dd  = p.day;
+      const mm  = p.month;
+      const yyyy = p.year;
+      const idx = parseInt(mm, 10) - 1;
+      const mon = (idx >= 0 && idx < 12) ? MONTHS_SHORT[idx] : '';
+      switch (settings.dateFormat) {
+        case 'DD/MM/YYYY': return `${dd}/${mm}/${yyyy}`;
+        case 'MM/DD/YYYY': return `${mm}/${dd}/${yyyy}`;
+        default:           return `${dd}-${mon}-${yyyy}`;
+      }
+    } catch { return ''; }
   }
 
   function formatTime(date, tz) {
-    return date.toLocaleTimeString('en-US', {
-      timeZone: tz,
-      hour:   '2-digit',
-      minute: '2-digit',
-      second: settings.showSeconds ? '2-digit' : undefined,
-      hour12: settings.hour12
-    });
+    try {
+      return date.toLocaleTimeString('en-US', {
+        timeZone: tz,
+        hour:   '2-digit',
+        minute: '2-digit',
+        second: settings.showSeconds ? '2-digit' : undefined,
+        hour12: settings.hour12
+      });
+    } catch { return ''; }
   }
 
   // ── Style helpers — values always come from validated whitelists ──────────
@@ -242,6 +247,7 @@
       wrap.appendChild(el);
     });
 
+    if (!document.body) return;
     document.body.appendChild(wrap);
     tick();
     intervalId = setInterval(tick, 1000);
@@ -283,9 +289,11 @@
   // ── Initialisation ────────────────────────────────────────────────────────
   function init() {
     chrome.storage.sync.get(SETTINGS_KEY, (result) => {
-      if (chrome.runtime.lastError) return; // storage read failed — use defaults
-      const raw = result[SETTINGS_KEY];
-      if (raw && typeof raw === 'object') settings = sanitise(raw);
+      if (!chrome.runtime.lastError) {
+        const raw = result[SETTINGS_KEY];
+        if (raw && typeof raw === 'object') settings = sanitise(raw);
+      }
+      initialized = true;
       if (settings.enabled) createOverlay();
     });
   }
@@ -300,15 +308,19 @@
     settings.enabled ? createOverlay() : removeOverlay();
   });
 
-  // Detect SPA navigation (e.g. NetSuite hash routing) — re-attach if removed
+  // Detect SPA navigation — re-attach if overlay removed after URL change.
+  // subtree:true catches deep DOM swaps; initialized guard prevents a pre-init
+  // flash when stored enabled=false hasn't been read yet.
   let lastUrl = location.href;
-  new MutationObserver(() => {
-    const url = location.href;
-    if (url !== lastUrl) {
-      lastUrl = url;
-      if (settings.enabled && !document.getElementById(OVERLAY_ID)) createOverlay();
-    }
-  }).observe(document.body, { childList: true }); // childList only — minimal scope
+  if (document.body) {
+    new MutationObserver(() => {
+      const url = location.href;
+      if (url !== lastUrl) {
+        lastUrl = url;
+        if (initialized && settings.enabled && !document.getElementById(OVERLAY_ID)) createOverlay();
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+  }
 
   init();
 })();
