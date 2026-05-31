@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>DTimestamp Overlay</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    width: 310px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 13px;
+    background: #0d0d0d;
+    color: #e0e0e0;
+  }
+
+  .header {
+    background: linear-gradient(135deg, #111827 0%, #1e3a5f 100%);
+    padding: 13px 16px 11px;
+    border-bottom: 1px solid #1e3a5f;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .header-icon {
+    width: 34px; height: 34px;
+    background: linear-gradient(135deg, #0055ff, #00aaff);
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(0,100,255,0.35);
+  }
+  .header-text h1 { font-size: 13px; font-weight: 700; color: #fff; }
+  .header-text p  { font-size: 10px; color: #5a7a9a; margin-top: 2px; letter-spacing: 0.04em; text-transform: uppercase; }
+
+  /* Preview */
+  .preview {
+    background: #111;
+    border-bottom: 1px solid #1e1e1e;
+    padding: 14px 16px;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 82px;
+  }
+  .preview-stamp {
+    background: rgba(10,10,10,0.88);
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 7px;
+    padding: 8px 18px 9px;
+    text-align: center;
+    box-shadow: 0 3px 14px rgba(0,0,0,0.6);
+    min-width: 175px; max-width: 275px;
+  }
+
+  /* Master toggle */
+  .master-toggle {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px;
+    background: #131313; border-bottom: 1px solid #1e1e1e;
+  }
+  .master-toggle span { font-weight: 600; color: #fff; font-size: 13px; }
+  .toggle { position: relative; width: 42px; height: 23px; flex-shrink: 0; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider {
+    position: absolute; inset: 0;
+    background: #2a2a2a; border-radius: 23px; cursor: pointer; transition: .2s;
+    border: 1px solid #333;
+  }
+  .toggle-slider:before {
+    content: ''; position: absolute;
+    width: 17px; height: 17px; left: 2px; top: 2px;
+    background: #888; border-radius: 50%; transition: .2s;
+  }
+  input:checked + .toggle-slider { background: #0055ff; border-color: #0055ff; }
+  input:checked + .toggle-slider:before { transform: translateX(19px); background: #fff; }
+
+  /* Sections */
+  .section { padding: 11px 16px; border-bottom: 1px solid #191919; }
+  .section-label {
+    font-size: 9.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: #3a5a7a; margin-bottom: 8px;
+  }
+
+  /* Pills */
+  .pill-group { display: flex; gap: 6px; }
+  .pill {
+    flex: 1; padding: 8px 4px 7px; text-align: center;
+    background: #181818; border: 1px solid #282828;
+    border-radius: 7px; cursor: pointer; transition: all .15s; user-select: none;
+  }
+  .pill:hover { border-color: #0055ff66; background: #1a2040; }
+  .pill.active { background: #001a4d; border-color: #0055ff; box-shadow: 0 0 0 1px #0055ff33; }
+  .pill-main { font-size: 12px; font-weight: 600; color: #aaa; line-height: 1.3; }
+  .pill.active .pill-main { color: #4da6ff; }
+  .pill-sub  { font-size: 9px; opacity: 0.45; margin-top: 3px; color: #888; line-height: 1.3; }
+  .pill.active .pill-sub { opacity: 0.65; color: #88ccff; }
+
+  /* Segment control */
+  .seg-group { display: flex; border: 1px solid #2a2a2a; border-radius: 7px; overflow: hidden; }
+  .seg {
+    flex: 1; padding: 6px 6px; text-align: center;
+    background: #181818; cursor: pointer; transition: all .15s;
+    font-size: 11px; color: #666; user-select: none; line-height: 1.3;
+  }
+  .seg:not(:last-child) { border-right: 1px solid #2a2a2a; }
+  .seg:hover { background: #1e1e1e; color: #bbb; }
+  .seg.active { background: #001a4d; color: #4da6ff; font-weight: 600; }
+  .seg-title { font-weight: 600; font-size: 12px; }
+  .seg-example { font-size: 9px; opacity: 0.55; margin-top: 2px; font-family: monospace; }
+
+  /* Font style pills — wider labels */
+  .font-pill-group { display: flex; flex-wrap: wrap; gap: 5px; }
+  .font-pill {
+    padding: 5px 10px; text-align: center;
+    background: #181818; border: 1px solid #282828;
+    border-radius: 6px; cursor: pointer; transition: all .15s; user-select: none;
+    font-size: 12px; color: #999;
+  }
+  .font-pill:hover { border-color: #0055ff66; color: #ccc; background: #1a2040; }
+  .font-pill.active { background: #001a4d; border-color: #0055ff; color: #4da6ff; font-weight: 600; box-shadow: 0 0 0 1px #0055ff33; }
+
+  /* Weight pills */
+  .weight-pill-group { display: flex; gap: 5px; }
+  .weight-pill {
+    flex: 1; padding: 5px 4px; text-align: center;
+    background: #181818; border: 1px solid #282828;
+    border-radius: 6px; cursor: pointer; transition: all .15s; user-select: none;
+    font-size: 12px; color: #888;
+  }
+  .weight-pill:hover { border-color: #0055ff66; background: #1a2040; }
+  .weight-pill.active { background: #001a4d; border-color: #0055ff; color: #4da6ff; box-shadow: 0 0 0 1px #0055ff33; }
+
+  /* Select */
+  select {
+    width: 100%;
+    background: #181818; border: 1px solid #2a2a2a; color: #ddd;
+    border-radius: 6px; padding: 6px 26px 6px 9px; font-size: 12px;
+    cursor: pointer; outline: none; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23445566'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 9px center;
+  }
+  select:focus { border-color: #0055ff; }
+
+  input[type=text] {
+    width: 100%;
+    background: #181818; border: 1px solid #2a2a2a; color: #ddd;
+    border-radius: 6px 6px 0 0; padding: 6px 9px; font-size: 12px;
+    outline: none; border-bottom: none;
+  }
+  input[type=text]:focus { border-color: #0055ff; }
+  input[type=text] + select { border-radius: 0 0 6px 6px; }
+
+  /* Range */
+  input[type=range] {
+    width: 100%; -webkit-appearance: none;
+    height: 4px; background: #282828; border-radius: 4px; outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 15px; height: 15px;
+    border-radius: 50%; background: #0055ff; cursor: pointer;
+    box-shadow: 0 0 0 3px #0055ff22;
+  }
+  .range-row { display: flex; align-items: center; gap: 9px; }
+  .range-row input { flex: 1; }
+  .range-val { font-size: 11px; color: #446; min-width: 36px; text-align: right; font-family: monospace; }
+
+  /* Checks */
+  .check-row { display: flex; align-items: center; gap: 9px; cursor: pointer; }
+  .check-row input[type=checkbox] { width: 15px; height: 15px; accent-color: #0055ff; cursor: pointer; flex-shrink: 0; }
+  .check-row span { font-size: 12px; color: #bbb; }
+
+  /* Layout helpers */
+  .row2 { display: flex; gap: 8px; }
+  .row2 > * { flex: 1; min-width: 0; }
+  .field-label { font-size: 10px; color: #446; margin-bottom: 4px; display: block; }
+  .gap6 { margin-bottom: 6px; }
+  .gap8 { margin-bottom: 8px; }
+
+  .footer {
+    padding: 8px 16px; font-size: 10px; color: #2a3a4a;
+    text-align: center; letter-spacing: 0.04em; background: #0a0a0a;
+  }
+  .disabled-overlay { opacity: 0.32; pointer-events: none; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-icon">🕐</div>
+  <div class="header-text">
+    <h1>DTimestamp Overlay</h1>
+    <p>Version 2.3 · Every page · Every tab</p>
+  </div>
+</div>
+
+<div class="preview">
+  <div class="preview-stamp" id="previewStamp">
+    <div id="previewLine1"></div>
+    <div id="previewLine2"></div>
+    <div id="previewLine3"></div>
+  </div>
+</div>
+
+<div class="master-toggle">
+  <span>Show Overlay</span>
+  <label class="toggle">
+    <input type="checkbox" id="enabled" checked>
+    <span class="toggle-slider"></span>
+  </label>
+</div>
+
+<div id="settingsBody">
+
+  <!-- LAYOUT -->
+  <div class="section">
+    <div class="section-label">Layout</div>
+    <div class="pill-group">
+      <div class="pill" data-lines="1">
+        <div class="pill-main">1 Line</div>
+        <div class="pill-sub">all inline</div>
+      </div>
+      <div class="pill" data-lines="2">
+        <div class="pill-main">2 Lines</div>
+        <div class="pill-sub">date / time·tz</div>
+      </div>
+      <div class="pill active" data-lines="3">
+        <div class="pill-main">3 Lines</div>
+        <div class="pill-sub">date / time / tz</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FONT -->
+  <div class="section">
+    <div class="section-label">Font</div>
+
+    <label class="field-label gap6">Style</label>
+    <div class="font-pill-group gap8" id="fontFamilyGroup">
+      <div class="font-pill active" data-font="mono"    style="font-family:monospace">Mono</div>
+      <div class="font-pill"        data-font="sans"    style="font-family:sans-serif">Sans</div>
+      <div class="font-pill"        data-font="serif"   style="font-family:serif">Serif</div>
+      <div class="font-pill"        data-font="rounded" style="font-family:sans-serif;letter-spacing:0.02em">Rounded</div>
+      <div class="font-pill"        data-font="system"  style="font-family:system-ui">System</div>
+    </div>
+
+    <label class="field-label gap6">Weight</label>
+    <div class="weight-pill-group gap8" id="fontWeightGroup">
+      <div class="weight-pill" data-weight="300" style="font-weight:300">Light</div>
+      <div class="weight-pill" data-weight="400" style="font-weight:400">Regular</div>
+      <div class="weight-pill" data-weight="500" style="font-weight:500">Medium</div>
+      <div class="weight-pill active" data-weight="600" style="font-weight:600">Semi-Bold</div>
+      <div class="weight-pill" data-weight="700" style="font-weight:700">Bold</div>
+    </div>
+
+    <label class="field-label">Size</label>
+    <div class="range-row gap8">
+      <input type="range" id="fontSize" min="10" max="22" step="1" value="13">
+      <span class="range-val" id="fontSizeVal">13px</span>
+    </div>
+
+    <label class="field-label">Brightness</label>
+    <div class="range-row gap8">
+      <input type="range" id="fontBrightness" min="40" max="100" step="5" value="100">
+      <span class="range-val" id="fontBrightnessVal">100%</span>
+    </div>
+
+    <label class="field-label">Opacity</label>
+    <div class="range-row">
+      <input type="range" id="fontOpacity" min="0.2" max="1" step="0.05" value="1">
+      <span class="range-val" id="fontOpacityVal">100%</span>
+    </div>
+  </div>
+
+  <!-- DATE -->
+  <div class="section">
+    <div class="section-label">Date format</div>
+    <select id="dateFormat">
+      <option value="DD-MON-YYYY">DD-MON-YYYY &nbsp; (29-May-2026)</option>
+      <option value="DD/MM/YYYY"> DD/MM/YYYY &nbsp;&nbsp; (29/05/2026)</option>
+      <option value="MM/DD/YYYY"> MM/DD/YYYY &nbsp;&nbsp; (05/29/2026)</option>
+    </select>
+  </div>
+
+  <!-- TIME -->
+  <div class="section">
+    <div class="section-label">Time</div>
+    <div style="display:flex; gap:16px;">
+      <label class="check-row">
+        <input type="checkbox" id="showSeconds" checked>
+        <span>Show seconds</span>
+      </label>
+      <label class="check-row">
+        <input type="checkbox" id="hour12" checked>
+        <span>AM/PM</span>
+      </label>
+    </div>
+  </div>
+
+  <!-- TIMEZONE -->
+  <div class="section">
+    <div class="section-label">Timezone</div>
+    <label class="field-label gap6">Label format</label>
+    <div class="seg-group gap8">
+      <div class="seg active" data-tzfmt="short">
+        <div class="seg-title">Short</div>
+        <div class="seg-example">PST</div>
+      </div>
+      <div class="seg" data-tzfmt="long">
+        <div class="seg-title">Long</div>
+        <div class="seg-example">PST · America/Los Angeles</div>
+      </div>
+    </div>
+    <label class="field-label">Select timezone</label>
+    <input type="text" id="tzSearch" placeholder="Search timezone…" autocomplete="off">
+    <select id="timezone"></select>
+  </div>
+
+  <!-- APPEARANCE -->
+  <div class="section">
+    <div class="section-label">Appearance</div>
+    <div class="row2 gap8">
+      <div>
+        <label class="field-label">Position</label>
+        <select id="position">
+          <option value="bottom-right">Bottom Right</option>
+          <option value="bottom-left">Bottom Left</option>
+          <option value="bottom-center">Bottom Center</option>
+          <option value="top-right">Top Right</option>
+          <option value="top-left">Top Left</option>
+          <option value="top-center">Top Center</option>
+          <option value="center">Center Screen</option>
+        </select>
+      </div>
+      <div>
+        <label class="field-label">Theme</label>
+        <select id="theme">
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
+          <option value="blue">Blue</option>
+          <option value="green">Green</option>
+        </select>
+      </div>
+    </div>
+    <label class="field-label">Background opacity</label>
+    <div class="range-row">
+      <input type="range" id="opacity" min="0.3" max="1" step="0.05" value="0.85">
+      <span class="range-val" id="opacityVal">85%</span>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">DTimestamp Overlay · Crinetics Pharmaceuticals</div>
+<script src="popup.js"></script>
+</body>
+</html>
