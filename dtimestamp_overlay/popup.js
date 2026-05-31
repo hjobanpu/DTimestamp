@@ -1,5 +1,5 @@
 /**
- * DTimestamp Overlay - Popup Script v2.4.0
+ * DTimestamp Overlay - Popup Script v2.5.1
  * Security-hardened. All user inputs validated before use or storage.
  */
 

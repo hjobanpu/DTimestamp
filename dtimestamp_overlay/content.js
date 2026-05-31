@@ -1,5 +1,5 @@
 /**
- * DTimestamp Overlay - Content Script v2.4.0
+ * DTimestamp Overlay - Content Script v2.5.1
  * Security-hardened for SOC 1/SOC 2 compliance.
  *
  * Security properties:
