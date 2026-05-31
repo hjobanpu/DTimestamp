@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-DTimestamp Overlay is a Chrome extension (Manifest V3) that injects a live date/time/timezone overlay onto every browser tab, intended for screenshot timestamping. It is security-hardened to SOC 1/SOC 2 standards and used internally at Crinetics Pharmaceuticals.
+DTimestamp Overlay is a Chrome extension (Manifest V3) that injects a live date/time/timezone overlay onto every browser tab, intended for screenshot timestamping. It is security-hardened to SOC 1/SOC 2 standards and used internally at few companies for NetSuite screenshots.
 
 ## Loading and testing
 
