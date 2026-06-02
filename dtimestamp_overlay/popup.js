@@ -1,5 +1,5 @@
 /**
- * DTimestamp Overlay - Popup Script v2.5.1
+ * DTimestamp Overlay - Popup Script v2.4.0
  * Security-hardened. All user inputs validated before use or storage.
  */
 
@@ -79,8 +79,8 @@ const FONT_FAMILIES_CSS = {
 };
 
 const THEME_STYLES = {
-  dark:  { bg: 'rgba(10,10,10,{OP})',    color: '#ffffff', border: 'rgba(255,255,255,0.08)' },
-  light: { bg: 'rgba(255,255,255,{OP})', color: '#111111', border: 'rgba(0,0,0,0.12)'       },
+  dark:  { bg: 'rgba(10,10,10,{OP})',    color: '#ffffff', border: 'rgba(255,255,255,0.09)' },
+  light: { bg: 'rgba(255,255,255,{OP})', color: '#111111', border: 'rgba(0,0,0,0.13)'       },
   blue:  { bg: 'rgba(0,60,160,{OP})',    color: '#ffffff', border: 'rgba(255,255,255,0.15)' },
   green: { bg: 'rgba(0,90,40,{OP})',     color: '#00ff88', border: 'rgba(0,255,136,0.2)'   }
 };
@@ -169,32 +169,28 @@ function formatTimezoneLabel(date, tz) {
 }
 
 function formatDate(date, tz) {
-  try {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit'
-    }).formatToParts(date);
-    const p = {};
-    parts.forEach(x => { p[x.type] = x.value; });
-    const dd = p.day, mm = p.month, yyyy = p.year;
-    const idx = parseInt(mm, 10) - 1;
-    const mon = (idx >= 0 && idx < 12) ? MONTHS_SHORT[idx] : '';
-    switch (settings.dateFormat) {
-      case 'DD/MM/YYYY': return `${dd}/${mm}/${yyyy}`;
-      case 'MM/DD/YYYY': return `${mm}/${dd}/${yyyy}`;
-      default:           return `${dd}-${mon}-${yyyy}`;
-    }
-  } catch { return ''; }
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(date);
+  const p = {};
+  parts.forEach(x => { p[x.type] = x.value; });
+  const dd = p.day, mm = p.month, yyyy = p.year;
+  const idx = parseInt(mm, 10) - 1;
+  const mon = (idx >= 0 && idx < 12) ? MONTHS_SHORT[idx] : '';
+  switch (settings.dateFormat) {
+    case 'DD/MM/YYYY': return `${dd}/${mm}/${yyyy}`;
+    case 'MM/DD/YYYY': return `${mm}/${dd}/${yyyy}`;
+    default:           return `${dd}-${mon}-${yyyy}`;
+  }
 }
 
 function formatTime(date, tz) {
-  try {
-    return date.toLocaleTimeString('en-US', {
-      timeZone: tz,
-      hour: '2-digit', minute: '2-digit',
-      second: settings.showSeconds ? '2-digit' : undefined,
-      hour12: settings.hour12
-    });
-  } catch { return ''; }
+  return date.toLocaleTimeString('en-US', {
+    timeZone: tz,
+    hour: '2-digit', minute: '2-digit',
+    second: settings.showSeconds ? '2-digit' : undefined,
+    hour12: settings.hour12
+  });
 }
 
 function applyLineStyle(el) {
@@ -290,9 +286,11 @@ function buildTzDropdown(filter) {
 }
 
 // ── Save — always sanitise before writing ────────────────────────────────
+// FIX #10 — sanitise before writing AND update in-memory settings so preview
+// always reflects exactly what was stored (prevents preview/stored divergence)
 function saveSettings() {
   const safe = sanitise(settings);
-  settings = safe; // keep in-memory object in sync with what's stored
+  settings = safe; // keep in-memory state in sync with what's written
   chrome.storage.sync.set({ [SETTINGS_KEY]: safe }, () => {
     if (chrome.runtime.lastError) {
       console.warn('[DTimestamp] Storage write failed:', chrome.runtime.lastError.message);
@@ -303,10 +301,6 @@ function saveSettings() {
 function toggleSettingsBody() {
   els.settingsBody.classList.toggle('disabled-overlay', !settings.enabled);
 }
-
-// ── Version — read from manifest so it never drifts ──────────────────────
-const _extVerEl = document.getElementById('ext-version');
-if (_extVerEl) _extVerEl.textContent = 'Version ' + chrome.runtime.getManifest().version + ' · Every page · Every tab';
 
 // ── Load ──────────────────────────────────────────────────────────────────
 chrome.storage.sync.get(SETTINGS_KEY, (result) => {
