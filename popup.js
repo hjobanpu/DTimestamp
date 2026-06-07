@@ -5,12 +5,67 @@
 
 'use strict';
 
+// ── Set scroll-area to a FIXED PIXEL HEIGHT ───────────────────────────────
+// This is the ONLY reliable way to size the scroll-area in a Chrome extension popup.
+//
+// Why CSS viewport units fail (100vh, calc, etc.):
+//   In a Chrome extension popup, 100vh = the CONTENT height of the document,
+//   not the browser window height. Since body sizes to content, 100vh ≈ sticky-top
+//   height, making calc(100vh - sticky) ≈ 0. Settings panel disappears.
+//
+// Why setting body height fails:
+//   body height = innerHeight makes body stop at content size with no room to flex.
+//
+// What WORKS — set scroll-area to a direct pixel height:
+//   window.outerHeight = actual browser window height (reliable)
+//   window.outerHeight - window.innerHeight = Chrome toolbar height for this user
+//   available = window.outerHeight - (outerHeight - innerHeight) = window.innerHeight
+//   BUT: at the moment JS runs, innerHeight = content height (unreliable)
+//
+//   SOLUTION: use window.outerHeight directly and subtract a measured toolbar.
+//   We get toolbar = outerHeight - innerHeight BEFORE layout, then
+//   available = outerHeight - toolbar = innerHeight AFTER layout would give us.
+//   Then: scrollH = available - sticky.offsetHeight - footer.offsetHeight
+//   Set as scroll-area.style.height (fixed pixels — always works).
+(function setScrollAreaHeight() {
+  function apply() {
+    try {
+      const scrollArea = document.querySelector('.scroll-area');
+      const stickyTop  = document.querySelector('.sticky-top');
+      const footer     = document.querySelector('.footer');
+      if (!scrollArea || !stickyTop) return;
+
+      // outerHeight = real browser window height
+      // outerHeight - innerHeight = chrome toolbar height (tabs + address bar)
+      // This gives us the TRUE available space for the popup
+      const chromeToolbar = window.outerHeight - window.innerHeight;
+      const available     = window.outerHeight - Math.max(0, chromeToolbar);
+      const stickyH       = stickyTop.getBoundingClientRect().height;
+      const footerH       = footer ? footer.getBoundingClientRect().height : 30;
+      const scrollH       = Math.max(0, available - stickyH - footerH);
+
+      // Set as FIXED PIXELS — not max-height, not calc, not 100vh
+      scrollArea.style.height = scrollH + 'px';
+    } catch (e) {
+      // Fallback: give scroll-area a reasonable fixed height
+      const scrollArea = document.querySelector('.scroll-area');
+      if (scrollArea) scrollArea.style.height = '280px';
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { requestAnimationFrame(apply); });
+  } else {
+    requestAnimationFrame(apply);
+  }
+})();
+
 const SETTINGS_KEY = 'timestamp_overlay_settings';
 
 // ── Whitelists (must mirror content.js) ──────────────────────────────────
 const ALLOWED_POSITIONS  = ['bottom-right','bottom-left','bottom-center','top-right','top-left','top-center','center'];
 const ALLOWED_THEMES     = ['dark','light','blue','green'];
-const ALLOWED_FONTS      = ['mono','sans','serif','rounded','system'];
+const ALLOWED_FONTS      = ['mono','sans','serif','rounded'];
 const ALLOWED_WEIGHTS    = ['300','400','500','600','700'];
 const ALLOWED_DATE_FMTS  = ['DD-MON-YYYY','DD/MM/YYYY','MM/DD/YYYY'];
 const ALLOWED_TZ_FMTS    = ['short','long'];
@@ -28,19 +83,22 @@ const ALLOWED_TIMEZONES  = new Set([
 const DEFAULT_SETTINGS = {
   enabled:        true,
   position:       'bottom-right',
-  opacity:        0.85,
-  fontFamily:     'mono',
+  opacity:        0.5,
+  fontFamily:     'rounded',
   fontSize:       13,
-  fontWeight:     '600',
+  fontWeight:     '400',
   fontBrightness: 100,
-  fontOpacity:    1.0,
+  fontOpacity:    0.5,
   showSeconds:    true,
   hour12:         true,
   dateFormat:     'DD-MON-YYYY',
   timezoneFormat: 'short',
-  showLines:      3,
+  showLines:      1,
   timezone:       'local',
-  theme:          'dark'
+  theme:          'blue',
+  // v3.5.0
+  hideOnHover:    true,
+  hideSeconds:    5,
 };
 
 // ── Sanitise before saving — never write raw input to storage ─────────────
@@ -66,6 +124,9 @@ function sanitise(raw) {
     fontSize:       clamp(raw.fontSize,       10,  22,   DEFAULT_SETTINGS.fontSize),
     fontBrightness: clamp(raw.fontBrightness, 40,  100,  DEFAULT_SETTINGS.fontBrightness),
     fontOpacity:    clamp(raw.fontOpacity,    0.2, 1.0,  DEFAULT_SETTINGS.fontOpacity),
+    // v3.5.0
+    hideOnHover:    typeof raw.hideOnHover === 'boolean'                 ? raw.hideOnHover        : DEFAULT_SETTINGS.hideOnHover,
+    hideSeconds:    clamp(raw.hideSeconds,    1,   30,   DEFAULT_SETTINGS.hideSeconds),
   };
 }
 
@@ -140,10 +201,17 @@ const els = {
   previewLine1:    $('previewLine1'),
   previewLine2:    $('previewLine2'),
   previewLine3:    $('previewLine3'),
+  previewStampWrap:$('previewStampWrap'),
+  previewPosHint:  $('previewPosHint'),
   pills:           document.querySelectorAll('.pill'),
   tzSegs:          document.querySelectorAll('.seg[data-tzfmt]'),
   fontFamilyPills: document.querySelectorAll('.font-pill'),
   fontWeightPills: document.querySelectorAll('.weight-pill'),
+  // v3.5.0
+  hideOnHover:     $('hideOnHover'),
+  hideSeconds:     $('hideSeconds'),
+  hideSecondsVal:  $('hideSecondsVal'),
+  hideSecondsRow:  $('hideSecondsRow'),
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -298,8 +366,33 @@ function saveSettings() {
   });
 }
 
+// Position key → CSS class for preview-stamp-wrap
+const POSITION_ALIGN = {
+  'top-left':      'pos-top-left',
+  'top-center':    'pos-top-center',
+  'top-right':     'pos-top-right',
+  'bottom-left':   'pos-bottom-left',
+  'bottom-center': 'pos-bottom-center',
+  'bottom-right':  'pos-bottom-right',
+  'center':        'pos-center',
+};
+
+function applyPreviewPosition() {
+  const wrap = els.previewStampWrap;
+  if (!wrap) return;
+  // Remove all pos-* classes
+  ['pos-top-left','pos-top-center','pos-top-right',
+   'pos-bottom-left','pos-bottom-center','pos-bottom-right','pos-center']
+    .forEach(c => wrap.classList.remove(c));
+  const cls = POSITION_ALIGN[settings.position] || 'pos-bottom-right';
+  wrap.classList.add(cls);
+}
+
 function toggleSettingsBody() {
-  els.settingsBody.classList.toggle('disabled-overlay', !settings.enabled);
+  const on = settings.enabled;
+  els.settingsBody.classList.toggle('disabled-overlay', !on);
+  const previewPanel = document.querySelector('.preview-panel');
+  if (previewPanel) previewPanel.classList.toggle('overlay-off', !on);
 }
 
 // ── Load ──────────────────────────────────────────────────────────────────
@@ -324,6 +417,11 @@ chrome.storage.sync.get(SETTINGS_KEY, (result) => {
   els.dateFormat.value              = settings.dateFormat;
   els.showSeconds.checked           = settings.showSeconds;
   els.hour12.checked                = settings.hour12;
+  // v3.5.0
+  els.hideOnHover.checked           = settings.hideOnHover;
+  els.hideSeconds.value             = settings.hideSeconds;
+  els.hideSecondsVal.textContent    = settings.hideSeconds + 's';
+  updateHideSecondsRow();
 
   buildTzDropdown('');
   updatePills();
@@ -331,6 +429,7 @@ chrome.storage.sync.get(SETTINGS_KEY, (result) => {
   updateFontFamilyPills();
   updateFontWeightPills();
   toggleSettingsBody();
+  applyPreviewPosition();
   applyPreview();
 });
 
@@ -359,7 +458,7 @@ els.enabled.addEventListener('change', () => {
   toggleSettingsBody(); saveSettings();
 });
 els.position.addEventListener('change', () => {
-  if (ALLOWED_POSITIONS.includes(els.position.value)) { settings.position = els.position.value; saveSettings(); }
+  if (ALLOWED_POSITIONS.includes(els.position.value)) { settings.position = els.position.value; applyPreviewPosition(); saveSettings(); }
 });
 els.theme.addEventListener('change', () => {
   if (ALLOWED_THEMES.includes(els.theme.value)) { settings.theme = els.theme.value; applyPreview(); saveSettings(); }
@@ -399,4 +498,25 @@ els.timezone.addEventListener('change', () => {
 els.tzSearch.addEventListener('input', () => {
   // Search input used only for filtering the dropdown — never stored or injected
   buildTzDropdown(els.tzSearch.value);
+});
+
+// ── v3.5.0 — Hover-to-hide listeners ─────────────────────────────────────
+
+// Dims the slider row when feature is disabled — visual affordance only
+function updateHideSecondsRow() {
+  const active = settings.hideOnHover;
+  els.hideSecondsRow.style.opacity       = active ? '1' : '0.35';
+  els.hideSecondsRow.style.pointerEvents = active ? ''  : 'none';
+}
+
+els.hideOnHover.addEventListener('change', () => {
+  settings.hideOnHover = els.hideOnHover.checked === true;
+  updateHideSecondsRow();
+  saveSettings();
+});
+
+els.hideSeconds.addEventListener('input', () => {
+  settings.hideSeconds = clamp(parseInt(els.hideSeconds.value, 10), 1, 30, DEFAULT_SETTINGS.hideSeconds);
+  els.hideSecondsVal.textContent = settings.hideSeconds + 's';
+  saveSettings();
 });

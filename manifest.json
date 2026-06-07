@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "DTimestamp Overlay",
-  "version": "3.0.0",
+  "version": "3.9.9",
   "description": "Shows live date, time and timezone overlay on every page for screenshot timestamping.",
   "permissions": [
     "storage"

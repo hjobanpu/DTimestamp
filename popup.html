@@ -6,18 +6,133 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
-  body {
-    width: 310px;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    font-size: 13px;
-    background: #0d0d0d;
-    color: #e0e0e0;
+  /* ── CSS Custom Properties — follows browser/OS appearance ──────────── */
+  :root {
+    --bg:          #0d0d0d;
+    --bg2:         #111111;
+    --bg3:         #131313;
+    --bg4:         #181818;
+    --bg5:         #1e1e1e;
+    --border:      #2a2a3a;
+    --border2:     #303048;
+    --border3:     #2a2a2a;
+    --panel-bdr:   #2a3a5a;
+    --text:        #e0e0e0;
+    --text2:       #aaa;
+    --text3:       #888;
+    --text4:       #666;
+    --label:       #3a5a7a;
+    --accent:      #0055ff;
+    --accent-glow: #0055ff33;
+    --accent-mid:  #0055ff66;
+    --accent-text: #4da6ff;
+    --accent-sub:  #88ccff;
+    --active-bg:   #001a4d;
+    --hover-bg:    #1a2040;
+    --header-grad: linear-gradient(135deg, #111827 0%, #1e3a5f 100%);
+    --header-bdr:  #2a4a7a;
+    --bmc-grad:    linear-gradient(135deg, #060c1a 0%, #05102a 100%);
+    --bmc-hover:   linear-gradient(135deg, #0a1528 0%, #091830 100%);
+    --bmc-bdr:     #1a2a4a;
+    --preview-bg:  #0a0e1a;
+    --preview-bdr: #1e3060;
+    --stamp-bg:    rgba(10,10,10,0.88);
+    --stamp-bdr:   rgba(100,160,255,0.18);
+    --slider-bg:   #282828;
+    --toggle-off:  #2a2a2a;
+    --toggle-bdr:  #333;
+    --toggle-dot:  #888;
+    --range-val:   #557;
+    --footer-text: #2a3a4a;
+    --section-sep: #1a1a2a;
+    --check-color: #e0e0e0;
   }
 
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg:          #f0f2f5;
+      --bg2:         #ffffff;
+      --bg3:         #e8eaed;
+      --bg4:         #ffffff;
+      --bg5:         #e2e5ea;
+      --border:      #c8cdd6;
+      --border2:     #d0d4dc;
+      --border3:     #cdd0d8;
+      --panel-bdr:   #b0b8cc;
+      --text:        #1a1a2e;
+      --text2:       #333;
+      --text3:       #555;
+      --text4:       #777;
+      --label:       #4466aa;
+      --accent:      #0055ff;
+      --accent-glow: #0055ff22;
+      --accent-mid:  #0055ff55;
+      --accent-text: #0044cc;
+      --accent-sub:  #2255bb;
+      --active-bg:   #dde8ff;
+      --hover-bg:    #eef2ff;
+      --header-grad: linear-gradient(135deg, #1a3a6e 0%, #1e5080 100%);
+      --header-bdr:  #1a4070;
+      --bmc-grad:    linear-gradient(135deg, #1a3a7a 0%, #1a3f8a 100%);
+      --bmc-hover:   linear-gradient(135deg, #1e4288 0%, #1e4898 100%);
+      --bmc-bdr:     #1a3a7a;
+      --preview-bg:  #dde3f0;
+      --preview-bdr: #a0b0d0;
+      --stamp-bg:    rgba(255,255,255,0.95);
+      --stamp-bdr:   rgba(0,0,0,0.12);
+      --slider-bg:   #c0c5d0;
+      --toggle-off:  #c0c8d4;
+      --toggle-bdr:  #a0aabb;
+      --toggle-dot:  #fff;
+      --range-val:   #445;
+      --footer-text: #8a93a0;
+      --section-sep: #d0d4dc;
+      --check-color: #1a1a2e;
+    }
+  }
+
+  /* ── Page structure ──────────────────────────────────────────────────── */
+  /* Body has NO height constraint — grows naturally to content.
+     scroll-area uses calc(100vh - var(--sticky-h) - var(--footer-h))
+     where --sticky-h and --footer-h are set from JS after measurement.
+     100vh in Chrome extension popup = the popup's allocated viewport.
+     This fills all available Chrome height with zero overflow.           */
+
+  body {
+    width: 320px;
+    display: flex;
+    flex-direction: column;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 13px;
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  /* ── Sticky top zone — header + BMC + preview always visible ────────── */
+  .sticky-top {
+    flex-shrink: 0;             /* never compressed                         */
+    border-bottom: 2px solid var(--panel-bdr);
+  }
+
+  /* ── Scrollable settings area ────────────────────────────────────────── */
+  .scroll-area {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Scrollbar — 6px wide (1.5× the previous 4px) */
+  .scroll-area::-webkit-scrollbar { width: 6px; }
+  .scroll-area::-webkit-scrollbar-track { background: transparent; }
+  .scroll-area::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 6px; }
+  .scroll-area::-webkit-scrollbar-thumb:hover { background: var(--label); }
+
+  /* ── Header panel ────────────────────────────────────────────────────── */
   .header {
-    background: linear-gradient(135deg, #111827 0%, #1e3a5f 100%);
-    padding: 13px 16px 11px;
-    border-bottom: 1px solid #1e3a5f;
+    background: var(--header-grad);
+    padding: 12px 16px 10px;
+    border-bottom: 1px solid var(--header-bdr);
     display: flex; align-items: center; gap: 10px;
   }
   .header-icon {
@@ -26,329 +141,482 @@
     border-radius: 9px;
     display: flex; align-items: center; justify-content: center;
     font-size: 17px; flex-shrink: 0;
-    box-shadow: 0 2px 8px rgba(0,100,255,0.35);
+    box-shadow: 0 2px 8px rgba(0,100,255,0.4);
   }
+  .header-text { flex: 1; min-width: 0; }
   .header-text h1 { font-size: 13px; font-weight: 700; color: #fff; }
-  .header-text p  { font-size: 10px; color: #5a7a9a; margin-top: 2px; letter-spacing: 0.04em; text-transform: uppercase; }
-
-  /* Preview */
-  .preview {
-    background: #111;
-    border-bottom: 1px solid #1e1e1e;
-    padding: 14px 16px;
-    display: flex; align-items: center; justify-content: center;
-    min-height: 82px;
+  .header-text p  { font-size: 10px; color: #7a9ac0; margin-top: 2px; letter-spacing: 0.03em; }
+  .header-toggle-wrap {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 3px; flex-shrink: 0;
   }
-  .preview-stamp {
-    background: rgba(10,10,10,0.88);
-    border: 1px solid rgba(255,255,255,0.09);
-    border-radius: 7px;
-    padding: 8px 18px 9px;
-    text-align: center;
-    box-shadow: 0 3px 14px rgba(0,0,0,0.6);
-    min-width: 175px; max-width: 275px;
+  .header-toggle-label {
+    font-size: 9px; color: rgba(255,255,255,0.5);
+    text-transform: uppercase; letter-spacing: 0.06em;
+    user-select: none;
   }
 
-  /* Master toggle */
-  .master-toggle {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 10px 16px;
-    background: #131313; border-bottom: 1px solid #1e1e1e;
-  }
-  .master-toggle span { font-weight: 600; color: #fff; font-size: 13px; }
+  /* ── Toggle (used in header) ─────────────────────────────────────────── */
   .toggle { position: relative; width: 42px; height: 23px; flex-shrink: 0; }
   .toggle input { opacity: 0; width: 0; height: 0; }
   .toggle-slider {
     position: absolute; inset: 0;
-    background: #2a2a2a; border-radius: 23px; cursor: pointer; transition: .2s;
-    border: 1px solid #333;
+    background: rgba(255,255,255,0.2); border-radius: 23px; cursor: pointer; transition: .2s;
+    border: 1px solid rgba(255,255,255,0.25);
   }
   .toggle-slider:before {
     content: ''; position: absolute;
     width: 17px; height: 17px; left: 2px; top: 2px;
-    background: #888; border-radius: 50%; transition: .2s;
+    background: rgba(255,255,255,0.7); border-radius: 50%; transition: .2s;
   }
-  input:checked + .toggle-slider { background: #0055ff; border-color: #0055ff; }
+  input:checked + .toggle-slider { background: #2ecc71; border-color: #27ae60; }
   input:checked + .toggle-slider:before { transform: translateX(19px); background: #fff; }
 
-  /* Sections */
-  .section { padding: 11px 16px; border-bottom: 1px solid #191919; }
-  .section-label {
-    font-size: 9.5px; font-weight: 700;
+  /* ── BMC panel ───────────────────────────────────────────────────────── */
+  .bmc-banner {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 16px;
+    background: var(--bmc-grad);
+    border-bottom: 1px solid var(--bmc-bdr);
+    text-decoration: none; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .bmc-banner:hover { background: var(--bmc-hover); }
+  .bmc-icon { font-size: 18px; flex-shrink: 0; line-height: 1; }
+  .bmc-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+  .bmc-main { font-size: 12px; font-weight: 600; color: #e8c97a; letter-spacing: 0.01em; }
+  .bmc-sub  { font-size: 10px; color: #b8a86a; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bmc-arrow { font-size: 13px; color: #e8c97a; flex-shrink: 0; opacity: 0.8; transition: opacity 0.15s, transform 0.15s; }
+  .bmc-banner:hover .bmc-arrow { opacity: 1; transform: translateX(2px); }
+
+  /* ── Preview panel — always visible ─────────────────────────────────── */
+  .preview-panel {
+    background: var(--preview-bg);
+    border-bottom: 1px solid var(--preview-bdr);
+    padding: 10px 16px;
+  }
+  .preview-label {
+    font-size: 9px; font-weight: 700;
     text-transform: uppercase; letter-spacing: 0.1em;
-    color: #3a5a7a; margin-bottom: 8px;
+    color: var(--label); margin-bottom: 7px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .preview-label::before,
+  .preview-label::after {
+    content: ''; flex: 1; height: 1px; background: var(--preview-bdr);
+  }
+  .preview-stamp {
+    background: var(--stamp-bg);
+    border: 1px solid var(--stamp-bdr);
+    border-radius: 5px;
+    padding: 4px 10px 5px;
+    text-align: center;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.3);
+    white-space: nowrap;
+    font-size: 10px !important;
   }
 
-  /* Pills */
-  .pill-group { display: flex; gap: 6px; }
+  /* ── Settings sections ───────────────────────────────────────────────── */
+  .section {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--section-sep);
+  }
+  .section-label {
+    font-size: 9px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--label); margin-bottom: 8px;
+  }
+
+  /* ── Pills ───────────────────────────────────────────────────────────── */
+  .pill-group { display: flex; gap: 5px; }
   .pill {
-    flex: 1; padding: 8px 4px 7px; text-align: center;
-    background: #181818; border: 1px solid #282828;
+    flex: 1; padding: 7px 4px 6px; text-align: center;
+    background: var(--bg4); border: 1px solid var(--border2);
     border-radius: 7px; cursor: pointer; transition: all .15s; user-select: none;
   }
-  .pill:hover { border-color: #0055ff66; background: #1a2040; }
-  .pill.active { background: #001a4d; border-color: #0055ff; box-shadow: 0 0 0 1px #0055ff33; }
-  .pill-main { font-size: 12px; font-weight: 600; color: #aaa; line-height: 1.3; }
-  .pill.active .pill-main { color: #4da6ff; }
-  .pill-sub  { font-size: 9px; opacity: 0.45; margin-top: 3px; color: #888; line-height: 1.3; }
-  .pill.active .pill-sub { opacity: 0.65; color: #88ccff; }
+  .pill:hover { border-color: var(--accent-mid); background: var(--hover-bg); }
+  .pill.active { background: var(--active-bg); border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-glow); }
+  .pill-main { font-size: 11px; font-weight: 600; color: var(--text2); line-height: 1.3; }
+  .pill.active .pill-main { color: var(--accent-text); }
+  .pill-sub  { font-size: 9px; opacity: 0.45; margin-top: 2px; color: var(--text3); line-height: 1.3; }
+  .pill.active .pill-sub { opacity: 0.65; color: var(--accent-sub); }
 
-  /* Segment control */
-  .seg-group { display: flex; border: 1px solid #2a2a2a; border-radius: 7px; overflow: hidden; }
+  /* ── Segment control ─────────────────────────────────────────────────── */
+  .seg-group { display: flex; border: 1px solid var(--border3); border-radius: 7px; overflow: hidden; }
   .seg {
-    flex: 1; padding: 6px 6px; text-align: center;
-    background: #181818; cursor: pointer; transition: all .15s;
-    font-size: 11px; color: #666; user-select: none; line-height: 1.3;
+    flex: 1; padding: 6px; text-align: center;
+    background: var(--bg4); cursor: pointer; transition: all .15s;
+    font-size: 11px; color: var(--text4); user-select: none; line-height: 1.3;
   }
-  .seg:not(:last-child) { border-right: 1px solid #2a2a2a; }
-  .seg:hover { background: #1e1e1e; color: #bbb; }
-  .seg.active { background: #001a4d; color: #4da6ff; font-weight: 600; }
-  .seg-title { font-weight: 600; font-size: 12px; }
-  .seg-example { font-size: 9px; opacity: 0.55; margin-top: 2px; font-family: monospace; }
+  .seg:not(:last-child) { border-right: 1px solid var(--border3); }
+  .seg:hover { background: var(--bg5); color: var(--text2); }
+  .seg.active { background: var(--active-bg); color: var(--accent-text); font-weight: 600; }
+  .seg-title { font-weight: 600; font-size: 11px; }
+  .seg-example { font-size: 9px; opacity: 0.55; margin-top: 1px; font-family: monospace; }
 
-  /* Font style pills — wider labels */
+  /* ── Font pills ──────────────────────────────────────────────────────── */
   .font-pill-group { display: flex; flex-wrap: wrap; gap: 5px; }
   .font-pill {
-    padding: 5px 10px; text-align: center;
-    background: #181818; border: 1px solid #282828;
+    padding: 4px 9px; background: var(--bg4); border: 1px solid var(--border2);
     border-radius: 6px; cursor: pointer; transition: all .15s; user-select: none;
-    font-size: 12px; color: #999;
+    font-size: 12px; color: var(--text3);
   }
-  .font-pill:hover { border-color: #0055ff66; color: #ccc; background: #1a2040; }
-  .font-pill.active { background: #001a4d; border-color: #0055ff; color: #4da6ff; font-weight: 600; box-shadow: 0 0 0 1px #0055ff33; }
+  .font-pill:hover { border-color: var(--accent-mid); color: var(--text2); background: var(--hover-bg); }
+  .font-pill.active { background: var(--active-bg); border-color: var(--accent); color: var(--accent-text); font-weight: 600; box-shadow: 0 0 0 1px var(--accent-glow); }
 
-  /* Weight pills */
-  .weight-pill-group { display: flex; gap: 5px; }
+  /* ── Weight pills ────────────────────────────────────────────────────── */
+  .weight-pill-group { display: flex; gap: 4px; }
   .weight-pill {
-    flex: 1; padding: 5px 4px; text-align: center;
-    background: #181818; border: 1px solid #282828;
+    flex: 1; padding: 4px 2px; text-align: center;
+    background: var(--bg4); border: 1px solid var(--border2);
     border-radius: 6px; cursor: pointer; transition: all .15s; user-select: none;
-    font-size: 12px; color: #888;
+    font-size: 11px; color: var(--text3);
   }
-  .weight-pill:hover { border-color: #0055ff66; background: #1a2040; }
-  .weight-pill.active { background: #001a4d; border-color: #0055ff; color: #4da6ff; box-shadow: 0 0 0 1px #0055ff33; }
+  .weight-pill:hover { border-color: var(--accent-mid); background: var(--hover-bg); }
+  .weight-pill.active { background: var(--active-bg); border-color: var(--accent); color: var(--accent-text); box-shadow: 0 0 0 1px var(--accent-glow); }
 
-  /* Select */
+  /* ── Select / inputs ─────────────────────────────────────────────────── */
   select {
     width: 100%;
-    background: #181818; border: 1px solid #2a2a2a; color: #ddd;
-    border-radius: 6px; padding: 6px 26px 6px 9px; font-size: 12px;
+    background: var(--bg4); border: 1px solid var(--border3); color: var(--text);
+    border-radius: 6px; padding: 5px 24px 5px 8px; font-size: 12px;
     cursor: pointer; outline: none; appearance: none;
     background-image: url("icons/chevron.svg");
-    background-repeat: no-repeat; background-position: right 9px center;
+    background-repeat: no-repeat; background-position: right 8px center;
+    transition: border-color .15s;
   }
-  select:focus { border-color: #0055ff; }
+  select:focus { border-color: var(--accent); }
 
   input[type=text] {
     width: 100%;
-    background: #181818; border: 1px solid #2a2a2a; color: #ddd;
-    border-radius: 6px 6px 0 0; padding: 6px 9px; font-size: 12px;
-    outline: none; border-bottom: none;
+    background: var(--bg4); border: 1px solid var(--border3); color: var(--text);
+    border-radius: 6px 6px 0 0; padding: 5px 8px; font-size: 12px;
+    outline: none; border-bottom: none; transition: border-color .15s;
   }
-  input[type=text]:focus { border-color: #0055ff; }
+  input[type=text]:focus { border-color: var(--accent); }
   input[type=text] + select { border-radius: 0 0 6px 6px; }
 
-  /* Range */
+  /* ── Range ───────────────────────────────────────────────────────────── */
   input[type=range] {
     width: 100%; -webkit-appearance: none;
-    height: 4px; background: #282828; border-radius: 4px; outline: none; cursor: pointer;
+    height: 4px; background: var(--slider-bg); border-radius: 4px; outline: none; cursor: pointer;
   }
   input[type=range]::-webkit-slider-thumb {
-    -webkit-appearance: none; width: 15px; height: 15px;
-    border-radius: 50%; background: #0055ff; cursor: pointer;
-    box-shadow: 0 0 0 3px #0055ff22;
+    -webkit-appearance: none; width: 14px; height: 14px;
+    border-radius: 50%; background: var(--accent); cursor: pointer;
+    box-shadow: 0 0 0 3px var(--accent-glow);
   }
-  .range-row { display: flex; align-items: center; gap: 9px; }
+  .range-row { display: flex; align-items: center; gap: 8px; }
   .range-row input { flex: 1; }
-  .range-val { font-size: 11px; color: #446; min-width: 36px; text-align: right; font-family: monospace; }
+  .range-val { font-size: 11px; color: var(--range-val); min-width: 34px; text-align: right; font-family: monospace; }
 
-  /* Checks */
-  .check-row { display: flex; align-items: center; gap: 9px; cursor: pointer; }
-  .check-row input[type=checkbox] { width: 15px; height: 15px; accent-color: #0055ff; cursor: pointer; flex-shrink: 0; }
-  .check-row span { font-size: 12px; color: #bbb; }
+  /* ── Checks ──────────────────────────────────────────────────────────── */
+  .check-row { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 1px 0; }
+  .check-row input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+  .check-row span { font-size: 12px; color: var(--check-color); }
 
-  /* Layout helpers */
+  /* ── Utility ─────────────────────────────────────────────────────────── */
   .row2 { display: flex; gap: 8px; }
   .row2 > * { flex: 1; min-width: 0; }
-  .field-label { font-size: 10px; color: #446; margin-bottom: 4px; display: block; }
+  .field-label { font-size: 10px; color: var(--text4); margin-bottom: 4px; display: block; }
   .gap6 { margin-bottom: 6px; }
   .gap8 { margin-bottom: 8px; }
 
+  /* ── Footer ──────────────────────────────────────────────────────────── */
   .footer {
-    padding: 8px 16px; font-size: 10px; color: #2a3a4a;
-    text-align: center; letter-spacing: 0.04em; background: #0a0a0a;
+    flex-shrink: 0;
+    padding: 7px 16px;
+    font-size: 10px; color: var(--footer-text);
+    text-align: center; letter-spacing: 0.04em;
+    background: var(--bg);
+    border-top: 1px solid var(--section-sep);
   }
-  .disabled-overlay { opacity: 0.32; pointer-events: none; }
+
+  /* Preview: OFF — hide stamp, show OFF message */
+  .preview-panel.overlay-off .preview-stamp {
+    display: none;
+  }
+  .preview-panel.overlay-off .preview-off-msg {
+    display: flex;
+  }
+  .preview-off-msg {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 0 4px;
+    font-size: 11px;
+    color: #cc4444;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    gap: 6px;
+  }
+  .preview-panel.overlay-off .preview-label::after {
+    content: ' — OFF';
+    color: #cc4444;
+  }
+
+  /* Preview stamp position alignment — mirrors actual overlay position */
+  /* ── Preview position viewport — 9-zone positioned preview ─────────── */
+  .preview-viewport {
+    position: relative;
+    width: 100%;
+    height: 80px;
+    background: var(--bg5);
+    border-radius: 6px;
+    border: 1px solid var(--border2);
+    overflow: hidden;
+    margin-top: 4px;
+  }
+  /* Corner/edge dots to suggest screen corners */
+  .preview-viewport::before {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border: 1px dashed var(--border2);
+    border-radius: 4px;
+    pointer-events: none;
+  }
+  .preview-stamp-wrap {
+    position: absolute;
+    transition: top 0.2s ease, bottom 0.2s ease, left 0.2s ease, right 0.2s ease, transform 0.2s ease;
+  }
+  /* 7 positions — mirrors actual overlay positions */
+  .preview-stamp-wrap.pos-top-left      { top: 6px;    left: 8px;                              }
+  .preview-stamp-wrap.pos-top-center    { top: 6px;    left: 50%; transform: translateX(-50%); }
+  .preview-stamp-wrap.pos-top-right     { top: 6px;    right: 8px;                             }
+  .preview-stamp-wrap.pos-bottom-left   { bottom: 6px; left: 8px;                              }
+  .preview-stamp-wrap.pos-bottom-center { bottom: 6px; left: 50%; transform: translateX(-50%); }
+  .preview-stamp-wrap.pos-bottom-right  { bottom: 6px; right: 8px;                             }
+  .preview-stamp-wrap.pos-center        { top: 50%;    left: 50%; transform: translate(-50%,-50%); }
+
+  .preview-pos-hint {
+    display: none; /* removed */
+  }
+
 </style>
 </head>
 <body>
 
-<div class="header">
-  <div class="header-icon">🕐</div>
-  <div class="header-text">
-    <h1>DTimestamp Overlay</h1>
-    <p>Version 3.0 · Every page · Every tab</p>
-  </div>
-</div>
+<!-- ── Sticky top zone — never scrolls away ───────────────────────────── -->
+<div class="sticky-top">
 
-<div class="preview">
-  <div class="preview-stamp" id="previewStamp">
-    <div id="previewLine1"></div>
-    <div id="previewLine2"></div>
-    <div id="previewLine3"></div>
-  </div>
-</div>
-
-<div class="master-toggle">
-  <span>Show Overlay</span>
-  <label class="toggle">
-    <input type="checkbox" id="enabled" checked>
-    <span class="toggle-slider"></span>
-  </label>
-</div>
-
-<div id="settingsBody">
-
-  <!-- LAYOUT -->
-  <div class="section">
-    <div class="section-label">Layout</div>
-    <div class="pill-group">
-      <div class="pill" data-lines="1">
-        <div class="pill-main">1 Line</div>
-        <div class="pill-sub">all inline</div>
-      </div>
-      <div class="pill" data-lines="2">
-        <div class="pill-main">2 Lines</div>
-        <div class="pill-sub">date / time·tz</div>
-      </div>
-      <div class="pill" data-lines="3">
-        <div class="pill-main">3 Lines</div>
-        <div class="pill-sub">date / time / tz</div>
-      </div>
+  <!-- Header panel — toggle lives here -->
+  <div class="header">
+    <div class="header-icon">🕐</div>
+    <div class="header-text">
+      <h1>DTimestamp Overlay</h1>
+      <p>Live date · time · timezone overlay</p>
     </div>
-  </div>
-
-  <!-- FONT -->
-  <div class="section">
-    <div class="section-label">Font</div>
-
-    <label class="field-label gap6">Style</label>
-    <div class="font-pill-group gap8" id="fontFamilyGroup">
-      <div class="font-pill" data-font="mono"    style="font-family:monospace">Mono</div>
-      <div class="font-pill"        data-font="sans"    style="font-family:sans-serif">Sans</div>
-      <div class="font-pill"        data-font="serif"   style="font-family:serif">Serif</div>
-      <div class="font-pill"        data-font="rounded" style="font-family:sans-serif;letter-spacing:0.02em">Rounded</div>
-      <div class="font-pill"        data-font="system"  style="font-family:system-ui">System</div>
-    </div>
-
-    <label class="field-label gap6">Weight</label>
-    <div class="weight-pill-group gap8" id="fontWeightGroup">
-      <div class="weight-pill" data-weight="300" style="font-weight:300">Light</div>
-      <div class="weight-pill" data-weight="400" style="font-weight:400">Regular</div>
-      <div class="weight-pill" data-weight="500" style="font-weight:500">Medium</div>
-      <div class="weight-pill" data-weight="600" style="font-weight:600">Semi-Bold</div>
-      <div class="weight-pill" data-weight="700" style="font-weight:700">Bold</div>
-    </div>
-
-    <label class="field-label">Size</label>
-    <div class="range-row gap8">
-      <input type="range" id="fontSize" min="10" max="22" step="1" value="13">
-      <span class="range-val" id="fontSizeVal">13px</span>
-    </div>
-
-    <label class="field-label">Brightness</label>
-    <div class="range-row gap8">
-      <input type="range" id="fontBrightness" min="40" max="100" step="5" value="100">
-      <span class="range-val" id="fontBrightnessVal">100%</span>
-    </div>
-
-    <label class="field-label">Opacity</label>
-    <div class="range-row">
-      <input type="range" id="fontOpacity" min="0.2" max="1" step="0.05" value="1">
-      <span class="range-val" id="fontOpacityVal">100%</span>
-    </div>
-  </div>
-
-  <!-- DATE -->
-  <div class="section">
-    <div class="section-label">Date format</div>
-    <select id="dateFormat">
-      <option value="DD-MON-YYYY">DD-MON-YYYY &nbsp; (29-May-2026)</option>
-      <option value="DD/MM/YYYY"> DD/MM/YYYY &nbsp;&nbsp; (29/05/2026)</option>
-      <option value="MM/DD/YYYY"> MM/DD/YYYY &nbsp;&nbsp; (05/29/2026)</option>
-    </select>
-  </div>
-
-  <!-- TIME -->
-  <div class="section">
-    <div class="section-label">Time</div>
-    <div style="display:flex; gap:16px;">
-      <label class="check-row">
-        <input type="checkbox" id="showSeconds" checked>
-        <span>Show seconds</span>
+    <div class="header-toggle-wrap">
+      <label class="toggle">
+        <input type="checkbox" id="enabled" checked>
+        <span class="toggle-slider"></span>
       </label>
-      <label class="check-row">
-        <input type="checkbox" id="hour12" checked>
-        <span>AM/PM</span>
+      <span class="header-toggle-label">On / Off</span>
+    </div>
+  </div>
+
+  <!-- Buy Me a Coffee panel -->
+  <a href="https://buymeacoffee.com/hjobanpu" target="_blank" rel="noopener noreferrer" class="bmc-banner">
+    <span class="bmc-icon">💰</span>
+    <span class="bmc-text">
+      <span class="bmc-main">Buy me a token / coffee 😊</span>
+      <span class="bmc-sub">If DTimestamp saves you time, say thanks!</span>
+    </span>
+    <span class="bmc-arrow">→</span>
+  </a>
+
+  <!-- Preview panel — always visible, shows live overlay appearance -->
+  <div class="preview-panel">
+    <div class="preview-label">Live Preview</div>
+    <div class="preview-viewport">
+      <div class="preview-stamp-wrap pos-bottom-right" id="previewStampWrap">
+        <div class="preview-stamp" id="previewStamp">
+          <div id="previewLine1"></div>
+          <div id="previewLine2"></div>
+          <div id="previewLine3"></div>
+        </div>
+      </div>
+    </div>
+    <div class="preview-off-msg">⏸ Overlay is off</div>
+    <div class="preview-pos-hint" id="previewPosHint"></div>
+  </div>
+
+</div><!-- /sticky-top -->
+
+<!-- ── Scrollable settings area ───────────────────────────────────────── -->
+<div class="scroll-area">
+
+  <div id="settingsBody">
+
+    <!-- 1. TIME -->
+    <div class="section">
+      <div class="section-label">Time</div>
+      <div style="display:flex; gap:16px;">
+        <label class="check-row">
+          <input type="checkbox" id="showSeconds" checked>
+          <span>Show seconds</span>
+        </label>
+        <label class="check-row">
+          <input type="checkbox" id="hour12" checked>
+          <span>AM/PM</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- 2. HOVER TO HIDE -->
+    <div class="section">
+      <div class="section-label">Hover to hide</div>
+      <label class="check-row" style="margin-bottom:8px;">
+        <input type="checkbox" id="hideOnHover">
+        <span>Hide overlay when mouse hovers over it</span>
       </label>
-    </div>
-  </div>
-
-  <!-- TIMEZONE -->
-  <div class="section">
-    <div class="section-label">Timezone</div>
-    <label class="field-label gap6">Label format</label>
-    <div class="seg-group gap8">
-      <div class="seg" data-tzfmt="short">
-        <div class="seg-title">Short</div>
-        <div class="seg-example">PST</div>
-      </div>
-      <div class="seg" data-tzfmt="long">
-        <div class="seg-title">Long</div>
-        <div class="seg-example">PST · America/Los Angeles</div>
+      <div id="hideSecondsRow" style="opacity:0.35; pointer-events:none;">
+        <label class="field-label">Re-show after cursor leaves (seconds)</label>
+        <div class="range-row">
+          <input type="range" id="hideSeconds" min="1" max="30" step="1" value="5">
+          <span class="range-val" id="hideSecondsVal">5s</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--label); margin-top:3px;">
+          <span>1s</span><span>Stays hidden while cursor is over it</span><span>30s</span>
+        </div>
       </div>
     </div>
-    <label class="field-label">Select timezone</label>
-    <input type="text" id="tzSearch" placeholder="Search timezone…" autocomplete="off">
-    <select id="timezone"></select>
-  </div>
 
-  <!-- APPEARANCE -->
-  <div class="section">
-    <div class="section-label">Appearance</div>
-    <div class="row2 gap8">
-      <div>
-        <label class="field-label">Position</label>
-        <select id="position">
-          <option value="bottom-right">Bottom Right</option>
-          <option value="bottom-left">Bottom Left</option>
-          <option value="bottom-center">Bottom Center</option>
-          <option value="top-right">Top Right</option>
-          <option value="top-left">Top Left</option>
-          <option value="top-center">Top Center</option>
-          <option value="center">Center Screen</option>
-        </select>
-      </div>
-      <div>
-        <label class="field-label">Theme</label>
-        <select id="theme">
-          <option value="dark">Dark</option>
-          <option value="light">Light</option>
-          <option value="blue">Blue</option>
-          <option value="green">Green</option>
-        </select>
+    <!-- 3. LAYOUT (lines) -->
+    <div class="section">
+      <div class="section-label">Layout</div>
+      <div class="pill-group">
+        <div class="pill" data-lines="1">
+          <div class="pill-main">1 Line</div>
+          <div class="pill-sub">all inline</div>
+        </div>
+        <div class="pill" data-lines="2">
+          <div class="pill-main">2 Lines</div>
+          <div class="pill-sub">date / time·tz</div>
+        </div>
+        <div class="pill" data-lines="3">
+          <div class="pill-main">3 Lines</div>
+          <div class="pill-sub">date / time / tz</div>
+        </div>
       </div>
     </div>
-    <label class="field-label">Background opacity</label>
-    <div class="range-row">
-      <input type="range" id="opacity" min="0.3" max="1" step="0.05" value="0.85">
-      <span class="range-val" id="opacityVal">85%</span>
+
+    <!-- 4. APPEARANCE -->
+    <div class="section">
+      <div class="section-label">Appearance</div>
+      <div class="row2 gap8">
+        <div>
+          <label class="field-label">Position</label>
+          <select id="position">
+            <option value="bottom-right">Bottom Right</option>
+            <option value="bottom-left">Bottom Left</option>
+            <option value="bottom-center">Bottom Center</option>
+            <option value="top-right">Top Right</option>
+            <option value="top-left">Top Left</option>
+            <option value="top-center">Top Center</option>
+            <option value="center">Center Screen</option>
+          </select>
+        </div>
+        <div>
+          <label class="field-label">Theme</label>
+          <select id="theme">
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+            <option value="blue" selected>Blue</option>
+            <option value="green">Green</option>
+          </select>
+        </div>
+      </div>
+      <label class="field-label">Background opacity</label>
+      <div class="range-row">
+        <input type="range" id="opacity" min="0.3" max="1" step="0.05" value="0.5">
+        <span class="range-val" id="opacityVal">50%</span>
+      </div>
     </div>
-  </div>
 
-</div>
+    <!-- 5. DATE FORMAT -->
+    <div class="section">
+      <div class="section-label">Date format</div>
+      <select id="dateFormat">
+        <option value="DD-MON-YYYY">DD-MON-YYYY &nbsp;(06-Jun-2026)</option>
+        <option value="DD/MM/YYYY">DD/MM/YYYY &nbsp;&nbsp;(06/06/2026)</option>
+        <option value="MM/DD/YYYY">MM/DD/YYYY &nbsp;&nbsp;(06/06/2026)</option>
+      </select>
+    </div>
 
-<div class="footer">DTimestamp Overlay · Crinetics Pharmaceuticals</div>
+    <!-- 6. TIMEZONE — label format inline to save space -->
+    <div class="section">
+      <div class="section-label">Timezone</div>
+
+      <!-- Compact inline label format row -->
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+        <span style="font-size:11px; color:var(--text3);">Label format</span>
+        <div class="seg-group" style="width:auto; flex-shrink:0;">
+          <div class="seg" data-tzfmt="short" style="padding:4px 14px;">
+            <span style="font-size:11px; font-weight:600;">Short</span>
+            <span style="font-size:9px; opacity:0.55; margin-left:4px; font-family:monospace;">PST</span>
+          </div>
+          <div class="seg" data-tzfmt="long" style="padding:4px 14px;">
+            <span style="font-size:11px; font-weight:600;">Long</span>
+            <span style="font-size:9px; opacity:0.55; margin-left:4px; font-family:monospace;">PST·LA</span>
+          </div>
+        </div>
+      </div>
+
+      <label class="field-label">Select timezone</label>
+      <input type="text" id="tzSearch" placeholder="Search timezone…" autocomplete="off">
+      <select id="timezone"></select>
+    </div>
+
+    <!-- 7. FONT -->
+    <div class="section">
+      <div class="section-label">Font</div>
+
+      <label class="field-label gap6">Style</label>
+      <div class="font-pill-group gap8" id="fontFamilyGroup">
+        <div class="font-pill" data-font="mono"    style="font-family:monospace">Mono</div>
+        <div class="font-pill" data-font="sans"    style="font-family:sans-serif">Sans</div>
+        <div class="font-pill" data-font="serif"   style="font-family:serif">Serif</div>
+        <div class="font-pill" data-font="rounded" style="font-family:sans-serif;letter-spacing:0.02em">Rounded</div>
+      </div>
+
+      <label class="field-label gap6">Weight</label>
+      <div class="weight-pill-group gap8" id="fontWeightGroup">
+        <div class="weight-pill" data-weight="300" style="font-weight:300">Light</div>
+        <div class="weight-pill" data-weight="400" style="font-weight:400">Regular</div>
+        <div class="weight-pill" data-weight="500" style="font-weight:500">Medium</div>
+        <div class="weight-pill" data-weight="600" style="font-weight:600">Semi‑Bold</div>
+        <div class="weight-pill" data-weight="700" style="font-weight:700">Bold</div>
+      </div>
+
+      <label class="field-label">Size</label>
+      <div class="range-row gap8">
+        <input type="range" id="fontSize" min="10" max="22" step="1" value="13">
+        <span class="range-val" id="fontSizeVal">13px</span>
+      </div>
+
+      <label class="field-label">Brightness</label>
+      <div class="range-row gap8">
+        <input type="range" id="fontBrightness" min="40" max="100" step="5" value="100">
+        <span class="range-val" id="fontBrightnessVal">100%</span>
+      </div>
+
+      <label class="field-label">Opacity</label>
+      <div class="range-row">
+        <input type="range" id="fontOpacity" min="0.2" max="1" step="0.05" value="0.5">
+        <span class="range-val" id="fontOpacityVal">50%</span>
+      </div>
+    </div>
+
+  </div><!-- /settingsBody -->
+
+  <!-- Footer inside scroll area so it appears after last section -->
+  <div class="footer">DTimestamp Overlay v3.9.9 · Active on all tabs</div>
+
+</div><!-- /scroll-area -->
+
 <script src="popup.js"></script>
 </body>
 </html>

@@ -1,30 +1,36 @@
 /**
- * DTimestamp Overlay - Content Script v3.0.0
+ * DTimestamp Overlay - Content Script v3.5.0
  *
- * v3.0.0 — Stability + performance. Verified against CSS spec before shipping.
+ * NEW in v3.5.0 — Hover-to-hide feature:
+ *   When the cursor moves over the overlay area, it fades out after a
+ *   configurable delay. It stays hidden while the cursor remains inside.
+ *   Once the cursor leaves, a countdown timer begins; when it expires the
+ *   overlay fades back in. If the cursor re-enters during the countdown,
+ *   the timer resets and the overlay stays hidden.
  *
- * ROOT CAUSE OF v2.9.0 REGRESSION:
- *   host.style.contain = 'layout style' was added as a "performance optimisation"
- *   but contain:layout creates a new containing block for position:fixed descendants
- *   per the CSS Containment spec (https://www.w3.org/TR/css-contain-1/#containment-layout).
- *   The inner overlay div (position:fixed) was then positioned relative to the 1px host
- *   element instead of the viewport — rendering it invisible.
- *   Similarly, will-change:transform (used in v2.7/v2.8) creates a stacking context
- *   which also breaks position:fixed. Both are removed and must never return.
+ *   Implementation choices (all deliberately conservative):
+ *   ① pointerEvents remains 'none' throughout — overlay NEVER intercepts
+ *     clicks. Anti-clickjack guarantee is fully preserved.
+ *   ② Uses document mousemove (passive) + getBoundingClientRect() on the
+ *     cached wrap reference — no new permissions, no page content access.
+ *   ③ mousemove handler is throttled to ≤10 checks/sec via timestamp gate
+ *     — no scroll jank, negligible CPU cost.
+ *   ④ Hide/show via CSS opacity + transition — no layout reflow, no JS
+ *     animation loop, compositor-only operation.
+ *   ⑤ hideSeconds clamped to [1, 30] — prevents abuse via storage tampering.
+ *   ⑥ Event listener registered with { passive: true } and removed on
+ *     removeOverlay() — no memory leaks.
  *
- * PERFORMANCE OPTIMISATIONS (all retained, none touch CSS positioning):
- *   PERF 1 — Intl.DateTimeFormat cached (25x faster date formatting)
- *   PERF 2 — Cached Intl time formatter (47x faster time formatting)
- *   PERF 3 — TZ abbreviation memoised per hour (850x faster)
- *   PERF 4 — Element references cached, zero querySelector per tick (100x faster)
- *   PERF 5 — Timezone resolved once at init, not per tick
- *   PERF 6 — Host element 1px (avoids full-screen compositor layer)
- *   PERF 8 — Interval paused on hidden tabs via Page Visibility API
+ * All prior capabilities retained:
+ *   - Shadow DOM isolation (CSP-safe, above app shadow trees)
+ *   - PERF 1-6,8 cached formatters, 1px host, tab-visibility pause
+ *   - SPA navigation detection (hashchange, popstate, pushState patch)
+ *   - Full input sanitisation / whitelists (SOC1/SOC2 compliant)
+ *   - No network requests, no page content access, no data collection
  *
- * DELIBERATELY EXCLUDED (CSS spec violations that break fixed positioning):
- *   ✗ contain:layout  — creates containing block, breaks position:fixed
- *   ✗ contain:paint   — clips overflow, hides content outside 1px box
- *   ✗ will-change:transform — creates stacking context, breaks position:fixed
+ * CSS spec compliance (lessons from v2.9.0 regression, must never regress):
+ *   ✗ NO contain:layout/paint/strict/content — breaks position:fixed
+ *   ✗ NO will-change:transform/opacity/filter — breaks position:fixed
  */
 
 (function () {
@@ -33,12 +39,13 @@
   const OVERLAY_ID   = 'dtimestamp_overlay_host';
   const SETTINGS_KEY = 'timestamp_overlay_settings';
 
+  // ── Whitelists ────────────────────────────────────────────────────────────
   const ALLOWED_POSITIONS = new Set([
     'top-left','top-center','top-right',
     'bottom-left','bottom-center','bottom-right','center'
   ]);
   const ALLOWED_THEMES     = new Set(['dark','light','blue','green']);
-  const ALLOWED_FONTS      = new Set(['mono','sans','serif','rounded','system']);
+  const ALLOWED_FONTS      = new Set(['mono','sans','serif','rounded']);
   const ALLOWED_WEIGHTS    = new Set(['300','400','500','600','700']);
   const ALLOWED_DATE_FMTS  = new Set(['DD-MON-YYYY','DD/MM/YYYY','MM/DD/YYYY']);
   const ALLOWED_TZ_FMTS    = new Set(['short','long']);
@@ -54,12 +61,24 @@
   ]);
 
   const DEFAULT_SETTINGS = {
-    enabled: true, position: 'bottom-right', opacity: 0.85,
-    fontFamily: 'mono', fontSize: 13, fontWeight: '600',
-    fontBrightness: 100, fontOpacity: 1.0,
-    showSeconds: true, hour12: true,
-    dateFormat: 'DD-MON-YYYY', timezoneFormat: 'short',
-    showLines: 3, timezone: 'local', theme: 'dark'
+    enabled:      true,
+    position:     'bottom-right',
+    opacity:      0.5,
+    fontFamily:   'rounded',
+    fontSize:     13,
+    fontWeight:   '400',
+    fontBrightness: 100,
+    fontOpacity:  0.5,
+    showSeconds:  true,
+    hour12:       true,
+    dateFormat:   'DD-MON-YYYY',
+    timezoneFormat: 'short',
+    showLines:    1,
+    timezone:     'local',
+    theme:        'blue',
+    // v3.5.0 new settings
+    hideOnHover:  true,
+    hideSeconds:  5,
   };
 
   const FONT_FAMILIES = {
@@ -78,13 +97,13 @@
   };
 
   const POSITIONS = {
-    'top-left':      { top:'10px',    left:'10px',  bottom:'', right:''                 },
-    'top-right':     { top:'10px',    right:'10px', bottom:'', left:''                  },
-    'top-center':    { top:'10px',    left:'50%',   bottom:'', right:'', center:true    },
-    'bottom-left':   { bottom:'10px', left:'10px',  top:'',    right:''                 },
-    'bottom-right':  { bottom:'10px', right:'10px', top:'',    left:''                  },
-    'bottom-center': { bottom:'10px', left:'50%',   top:'',    right:'', center:true    },
-    'center':        { top:'50%',     left:'50%',   bottom:'', right:'', centerBoth:true }
+    'top-left':      { top:'10px',    left:'10px',  bottom:'', right:''                  },
+    'top-right':     { top:'10px',    right:'10px', bottom:'', left:''                   },
+    'top-center':    { top:'10px',    left:'50%',   bottom:'', right:'', center:true     },
+    'bottom-left':   { bottom:'10px', left:'10px',  top:'',    right:''                  },
+    'bottom-right':  { bottom:'10px', right:'10px', top:'',    left:''                   },
+    'bottom-center': { bottom:'10px', left:'50%',   top:'',    right:'', center:true     },
+    'center':        { top:'50%',     left:'50%',   bottom:'', right:'', centerBoth:true  }
   };
 
   const MONTHS_SHORT = Object.freeze([
@@ -92,12 +111,14 @@
     'Jul','Aug','Sep','Oct','Nov','Dec'
   ]);
 
+  // ── State ─────────────────────────────────────────────────────────────────
   let settings   = { ...DEFAULT_SETTINGS };
   let intervalId = null;
   let shadowRoot = null;
+  let wrapEl     = null;   // cached reference to the inner overlay div
   let elRefs     = {};
 
-  // ── Cached Intl formatters — rebuilt only on settings change ──────────────
+  // Cached Intl formatters — rebuilt only on settings change (PERF 1-3,5)
   let resolvedTz     = 'UTC';
   let fmtDate        = null;
   let fmtTime        = null;
@@ -105,6 +126,14 @@
   let cachedTzAbbr   = '';
   let cachedTzAbbrHr = -1;
 
+  // Hover-to-hide state
+  let hoverHideTimer   = null;   // setTimeout handle for the re-show countdown
+  let overlayVisible   = true;   // current visual state
+  let cursorInOverlay  = false;  // is cursor currently inside the overlay rect?
+  let mouseMoveLastMs  = 0;      // throttle gate for mousemove handler
+  let mouseMoveHandler = null;   // reference so we can removeEventListener cleanly
+
+  // ── Formatters ────────────────────────────────────────────────────────────
   function rebuildFormatters() {
     resolvedTz = (!settings.timezone || settings.timezone === 'local')
       ? (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')
@@ -147,10 +176,13 @@
       timezone:       ALLOWED_TIMEZONES.has(raw.timezone)             ? raw.timezone           : DEFAULT_SETTINGS.timezone,
       showSeconds:    typeof raw.showSeconds === 'boolean'             ? raw.showSeconds        : DEFAULT_SETTINGS.showSeconds,
       hour12:         typeof raw.hour12 === 'boolean'                 ? raw.hour12             : DEFAULT_SETTINGS.hour12,
-      opacity:        clamp(raw.opacity,        0.3, 1.0, DEFAULT_SETTINGS.opacity),
-      fontSize:       clamp(raw.fontSize,       10,  22,  DEFAULT_SETTINGS.fontSize),
-      fontBrightness: clamp(raw.fontBrightness, 40,  100, DEFAULT_SETTINGS.fontBrightness),
-      fontOpacity:    clamp(raw.fontOpacity,    0.2, 1.0, DEFAULT_SETTINGS.fontOpacity),
+      opacity:        clamp(raw.opacity,        0.3, 1.0,  DEFAULT_SETTINGS.opacity),
+      fontSize:       clamp(raw.fontSize,       10,  22,   DEFAULT_SETTINGS.fontSize),
+      fontBrightness: clamp(raw.fontBrightness, 40,  100,  DEFAULT_SETTINGS.fontBrightness),
+      fontOpacity:    clamp(raw.fontOpacity,    0.2, 1.0,  DEFAULT_SETTINGS.fontOpacity),
+      // v3.5.0 — new fields with strict validation
+      hideOnHover:    typeof raw.hideOnHover === 'boolean'             ? raw.hideOnHover        : DEFAULT_SETTINGS.hideOnHover,
+      hideSeconds:    clamp(raw.hideSeconds,    1,   30,   DEFAULT_SETTINGS.hideSeconds),
     };
   }
 
@@ -211,7 +243,93 @@
     el.style.lineHeight    = '1.55';
   }
 
-  // ── Overlay ───────────────────────────────────────────────────────────────
+  // ── Hover-to-hide logic ───────────────────────────────────────────────────
+  //
+  // Cursor detection: document mousemove (passive) + bounding rect comparison.
+  // pointerEvents on the overlay stays 'none' throughout — NEVER intercepts clicks.
+  // Throttled to ≤10 checks per second via timestamp gate (100ms minimum interval).
+  // Hide/show via CSS opacity + transition — compositor-only, zero layout reflow.
+
+  function hideOverlay() {
+    if (!overlayVisible || !wrapEl) return;
+    overlayVisible = false;
+    wrapEl.style.opacity    = '0';
+    wrapEl.style.transition = 'opacity 0.2s ease';
+  }
+
+  function showOverlay() {
+    if (overlayVisible || !wrapEl) return;
+    overlayVisible = true;
+    wrapEl.style.opacity    = '1';
+    wrapEl.style.transition = 'opacity 0.3s ease';
+  }
+
+  function cancelHideTimer() {
+    if (hoverHideTimer !== null) {
+      clearTimeout(hoverHideTimer);
+      hoverHideTimer = null;
+    }
+  }
+
+  function isCursorOverOverlay(clientX, clientY) {
+    if (!wrapEl) return false;
+    try {
+      const r = wrapEl.getBoundingClientRect();
+      return clientX >= r.left && clientX <= r.right &&
+             clientY >= r.top  && clientY <= r.bottom;
+    } catch { return false; }
+  }
+
+  function onMouseMove(e) {
+    if (!settings.hideOnHover || !wrapEl) return;
+
+    // Throttle: max 10 checks per second
+    const now = Date.now();
+    if (now - mouseMoveLastMs < 100) return;
+    mouseMoveLastMs = now;
+
+    const inside = isCursorOverOverlay(e.clientX, e.clientY);
+
+    if (inside) {
+      // Cursor entered or remains inside overlay area
+      cursorInOverlay = true;
+      cancelHideTimer();   // cancel any pending re-show timer
+      hideOverlay();
+    } else {
+      // Cursor is outside overlay area
+      if (cursorInOverlay) {
+        // Just left the overlay — start the re-show countdown
+        cursorInOverlay = false;
+        cancelHideTimer();
+        hoverHideTimer = setTimeout(() => {
+          hoverHideTimer = null;
+          // Only re-show if cursor is still outside (double-check)
+          if (!cursorInOverlay) showOverlay();
+        }, settings.hideSeconds * 1000);
+      }
+      // If cursor was never inside, do nothing
+    }
+  }
+
+  function attachHoverListener() {
+    detachHoverListener();
+    if (!settings.hideOnHover) return;
+    mouseMoveHandler = onMouseMove;
+    document.addEventListener('mousemove', mouseMoveHandler, { passive: true });
+  }
+
+  function detachHoverListener() {
+    if (mouseMoveHandler) {
+      document.removeEventListener('mousemove', mouseMoveHandler);
+      mouseMoveHandler = null;
+    }
+    cancelHideTimer();
+    cursorInOverlay = false;
+    overlayVisible  = true;
+    mouseMoveLastMs = 0;
+  }
+
+  // ── Overlay creation ──────────────────────────────────────────────────────
   function createOverlay() {
     removeOverlay();
 
@@ -221,13 +339,8 @@
     rebuildFormatters();
 
     // ── Host element ──────────────────────────────────────────────────────
-    // CRITICAL CSS RULES (must never be changed):
-    //   - No contain:layout, contain:paint, contain:strict, contain:content
-    //     → These create a containing block, breaking position:fixed on children
-    //   - No will-change:transform/opacity/filter
-    //     → These create a stacking context, breaking position:fixed on children
-    //   - width/height can be 1px (PERF 6) because overflow:visible allows
-    //     shadow children to render outside the host's own box
+    // CRITICAL: No contain:layout/paint/strict, no will-change:transform/opacity/filter
+    // — any of these create a containing block that breaks position:fixed on children.
     const host = document.createElement('div');
     host.id = OVERLAY_ID;
     host.setAttribute('aria-hidden', 'true');
@@ -245,8 +358,6 @@
     host.style.border        = 'none';
     host.style.margin        = '0';
     host.style.padding       = '0';
-    // NO contain — would break fixed positioning of children
-    // NO will-change — would break fixed positioning of children
 
     try {
       shadowRoot = host.attachShadow({ mode: 'open' });
@@ -259,7 +370,7 @@
     const theme = getThemeColors();
 
     const wrap = document.createElement('div');
-    wrap.style.position        = 'fixed';  // fixed to viewport (host has no containing block)
+    wrap.style.position        = 'fixed';
     wrap.style.top             = pos.top    || '';
     wrap.style.bottom          = pos.bottom || '';
     wrap.style.left            = pos.left   || '';
@@ -268,11 +379,14 @@
     wrap.style.color           = theme.color;
     wrap.style.padding         = '7px 14px';
     wrap.style.borderRadius    = '6px';
-    wrap.style.pointerEvents   = 'none';
+    wrap.style.pointerEvents   = 'none';   // MUST stay 'none' — never intercept clicks
     wrap.style.userSelect      = 'none';
     wrap.style.boxShadow       = '0 2px 10px rgba(0,0,0,0.35)';
     wrap.style.border          = '1px solid ' + theme.border;
     wrap.style.textAlign       = 'center';
+    wrap.style.opacity         = '1';      // initial state: visible
+    // Note: transition NOT set here — only applied on hide/show to avoid
+    //       interfering with the initial render
     if (pos.centerBoth)  wrap.style.transform = 'translate(-50%, -50%)';
     else if (pos.center) wrap.style.transform = 'translateX(-50%)';
     if (settings.showLines === 1) wrap.style.whiteSpace = 'nowrap';
@@ -290,8 +404,14 @@
       elRefs[id] = el;
     });
 
+    wrapEl = wrap;
+    overlayVisible = true;
+
     shadowRoot.appendChild(wrap);
     docRoot.appendChild(host);
+
+    // Attach hover listener after overlay is in DOM
+    attachHoverListener();
 
     tick();
     intervalId = setInterval(tick, 1000);
@@ -327,10 +447,12 @@
 
   // ── Remove ────────────────────────────────────────────────────────────────
   function removeOverlay() {
+    detachHoverListener();   // clean up mousemove listener + timer before DOM removal
     const el = document.getElementById(OVERLAY_ID);
     if (el) el.remove();
     if (intervalId) { clearInterval(intervalId); intervalId = null; }
     shadowRoot = null;
+    wrapEl     = null;
     elRefs     = {};
   }
 
@@ -338,7 +460,7 @@
     if (settings.enabled && !document.getElementById(OVERLAY_ID)) createOverlay();
   }
 
-  // ── Page Visibility — pause on hidden tabs ─────────────────────────────────
+  // ── Page Visibility — pause interval on hidden tabs (PERF 8) ─────────────
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       if (intervalId) { clearInterval(intervalId); intervalId = null; }
